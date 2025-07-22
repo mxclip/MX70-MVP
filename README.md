@@ -5,26 +5,31 @@ MX70 is an MVP for a performance-based micro-influencer marketplace platform tha
 ## 🎯 Key Features
 
 ### For Businesses
-- **Post Gigs**: Create video projects with custom goals and story types
-- **Upload Raw Footage**: Provide source material for content creators
+- **Post Gigs**: Create video projects with predefined goals (1k views, 100 likes, 10 check-ins, 10% sales lift)
+- **Story Types**: Choose from morning rush, lunch specials, closing, unboxing, try-on, demo
+- **File Upload**: Upload raw footage directly (50MB limit, MP4/MOV supported)
 - **Track Performance**: Monitor views, likes, and ROI metrics
-- **Self-Promo Credits**: Earn credits through promotional posts
-- **Escrow System**: Secure payment processing
+- **Self-Promo Credits**: Earn $10 credits through #MadeWithMX70 promotional posts
+- **Escrow System**: Secure payment processing with Stripe integration
 
 ### For Clippers (Content Creators)
 - **Take Lessons**: Complete training modules on compelling content creation
-- **Get Certified**: Pass quizzes to unlock gig claiming abilities
+- **Get Certified**: Pass quizzes (70% required) to unlock gig claiming abilities
 - **Claim Gigs**: Browse and claim available video editing opportunities
-- **Performance Bonuses**: Earn base pay ($100) + tiered bonuses based on engagement
+- **Pure Performance Pay**: Earn bonuses based solely on engagement and outcomes (no base pay)
+- **File Upload**: Upload edited videos with social media integration
 - **Dashboard Analytics**: Track earnings and performance metrics
 
 ## 🏗️ Tech Stack
 
 - **Backend**: Python 3.10 with FastAPI
 - **Frontend**: React 18 with Tailwind CSS
-- **Database**: PostgreSQL
+- **Database**: PostgreSQL with SQLAlchemy
 - **Authentication**: JWT tokens with bcrypt password hashing
-- **Payments**: Stripe integration (stubbed for MVP)
+- **File Storage**: AWS S3 integration for video uploads
+- **Email**: AWS SES for notifications
+- **Payments**: Stripe integration for escrow and payouts
+- **Rate Limiting**: Redis-based request limiting
 - **Development**: Docker Compose for local setup
 
 ## 🚀 Quick Start
@@ -92,19 +97,20 @@ docker-compose up -d --build
 - **Business Fee**: 8% on gig budgets
 - **Clipper Fee**: 10-15% on earnings
 
-### Bonus Structure for Clippers
-- **Base Pay**: $100 per completed gig
-- **Minimum Thresholds**: 300 views, 30 likes
-- **Tiered Bonuses**:
-  - Views: $0.005-$0.015 per view (based on tiers)
-  - Likes: $0.03-$0.07 per like (based on tiers)
-  - Outcomes: $0.10 per outcome (30% weight)
+### Pure Performance Bonus Structure for Clippers
+- **No Base Pay**: 100% performance-based compensation
+- **Minimum Thresholds**: 300 views AND 30 likes (both required)
+- **Engagement Bonuses (70% weight)**:
+  - Views: $0.005-$0.015 per view (tiered: <500, 500-2K, >2K)
+  - Likes: $0.03-$0.07 per like (tiered: <50, 50-200, >200)
+- **Outcome Bonuses (30% weight)**: $0.10 per check-in/sale
 - **Maximum Bonus**: $75 cap per gig
 
 ### Credits System
-- **Self-Promo**: $10 credit for qualifying posts (300+ views, 30+ likes)
-- **Gig Posting**: $5 credit per gig posted
+- **Self-Promo**: $10 credit for qualifying posts (300+ views, 30+ likes, #MadeWithMX70)
+- **Gig Posting**: $5 credit per gig posted (minimum $50 budget)
 - **Monthly Cap**: $15 from self-promotion
+- **Expiry**: All credits expire after 6 months
 
 ## 🏗️ Architecture
 
