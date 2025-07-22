@@ -1,11 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
+from datetime import datetime, timedelta
 
 from ..database import get_db
 from ..models import User, Gig, Submission, Credit
 from ..schemas import GigCreate, GigResponse, SubmissionCreate, SubmissionResponse, SubmissionUpdate
 from ..auth import get_current_active_user, require_role
+from ..services.file_upload import upload_video_to_s3
+from ..services.email import send_gig_claimed_notification, send_video_submitted_notification
+from ..config import get_settings
+
+settings = get_settings()
 
 router = APIRouter(prefix="/gigs", tags=["gigs"])
 
@@ -16,11 +22,11 @@ def post_gig(
     current_user: User = Depends(require_role("business_local"))
 ):
     """Post a new gig (business only)"""
-    # Validate budget is reasonable
-    if gig.budget < 50:
+    # Validate minimum budget
+    if gig.budget < settings.minimum_gig_budget:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Minimum budget is $50"
+            detail=f"Minimum budget is ${settings.minimum_gig_budget}"
         )
     
     # Create the gig
@@ -34,11 +40,13 @@ def post_gig(
     )
     db.add(db_gig)
     
-    # Add gig posting credit ($5 per gig posted)
+    # Add gig posting credit ($5 per gig posted) with 6-month expiry
+    credit_expiry = datetime.utcnow() + timedelta(days=30 * settings.credit_expiry_months)
     credit = Credit(
         user_id=current_user.id,
-        amount=5.0,
-        source="gig_post"
+        amount=settings.gig_post_credit,
+        source="gig_post",
+        expiry=credit_expiry
     )
     db.add(credit)
     
@@ -46,6 +54,21 @@ def post_gig(
     db.refresh(db_gig)
     
     return db_gig
+
+@router.post("/upload-raw-footage")
+async def upload_raw_footage(
+    file: UploadFile = File(...),
+    current_user: User = Depends(require_role("business_local"))
+):
+    """Upload raw footage for a gig"""
+    try:
+        file_url = await upload_video_to_s3(file, "raw-footage")
+        return {"raw_footage_url": file_url}
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Upload failed: {str(e)}"
+        )
 
 @router.get("/available", response_model=List[GigResponse])
 def get_available_gigs(
@@ -74,7 +97,7 @@ def get_my_gigs(
     return gigs
 
 @router.post("/{gig_id}/claim")
-def claim_gig(
+async def claim_gig(
     gig_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role("clipper"))
@@ -115,6 +138,16 @@ def claim_gig(
     
     db.add(submission)
     db.commit()
+    db.refresh(submission)
+    
+    # Send notification to business
+    business = db.query(User).filter(User.id == gig.business_id).first()
+    if business:
+        await send_gig_claimed_notification(
+            business.email, 
+            gig.story_type, 
+            current_user.email
+        )
     
     return {"message": "Gig claimed successfully", "submission_id": submission.id}
 
@@ -197,31 +230,39 @@ def update_submission_metrics(
     return submission
 
 def calculate_bonus(views: int, likes: int, outcomes: int) -> float:
-    """Calculate bonus based on tiered engagement metrics"""
-    # Minimum thresholds
+    """Calculate pure performance bonus (no base pay)"""
+    # Minimum thresholds - must meet both
     if views < 300 or likes < 30:
         return 0.0
     
     bonus = 0.0
     
-    # Views bonus (tiered)
+    # Views bonus (tiered) - 70% weight
+    views_bonus = 0.0
     if views < 500:
-        bonus += views * 0.005
+        views_bonus = views * 0.005
     elif views < 2000:
-        bonus += views * 0.01
+        views_bonus = views * 0.01
     else:
-        bonus += views * 0.015
+        views_bonus = views * 0.015
     
-    # Likes bonus (tiered)
+    # Likes bonus (tiered) - 70% weight  
+    likes_bonus = 0.0
     if likes < 50:
-        bonus += likes * 0.03
+        likes_bonus = likes * 0.03
     elif likes < 200:
-        bonus += likes * 0.05
+        likes_bonus = likes * 0.05
     else:
-        bonus += likes * 0.07
+        likes_bonus = likes * 0.07
     
-    # Outcomes bonus (hybrid 30% weight)
-    bonus += outcomes * 0.10 * 0.3
+    # Combine engagements (70% weight)
+    engagement_bonus = (views_bonus + likes_bonus) * 0.7
+    
+    # Outcomes bonus (30% weight) - check-ins or sales
+    outcome_bonus = outcomes * 0.10 * 0.3
+    
+    # Total bonus
+    bonus = engagement_bonus + outcome_bonus
     
     # Cap at $75
     return min(bonus, 75.0) 

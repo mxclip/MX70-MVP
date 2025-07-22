@@ -5,6 +5,9 @@ from datetime import datetime, timedelta
 
 from ..database import get_db
 from ..models import User, Gig, Submission, Credit, SelfPromo
+from ..config import get_settings
+
+settings = get_settings()
 from ..schemas import (
     DashboardResponse, 
     SelfPromoCreate, 
@@ -38,16 +41,28 @@ def get_dashboard(
         gig_ids = [sub.gig_id for sub in submissions]
         gigs = db.query(Gig).filter(Gig.id.in_(gig_ids)).all() if gig_ids else []
     
-    # Get user's credits
-    credits = db.query(Credit).filter(Credit.user_id == current_user.id).all()
+    # Get user's credits (only non-expired)
+    now = datetime.utcnow()
+    credits = db.query(Credit).filter(
+        Credit.user_id == current_user.id,
+        Credit.expiry > now
+    ).all()
     total_credits = sum(credit.amount for credit in credits)
+    
+    # Get expired credits for information
+    expired_credits = db.query(Credit).filter(
+        Credit.user_id == current_user.id,
+        Credit.expiry <= now
+    ).all()
+    expired_credits_amount = sum(credit.amount for credit in expired_credits)
     
     return DashboardResponse(
         user=UserResponse.from_orm(current_user),
         gigs=[GigResponse.from_orm(gig) for gig in gigs],
         submissions=[SubmissionResponse.from_orm(sub) for sub in submissions],
         credits=[CreditResponse.from_orm(credit) for credit in credits],
-        total_credits=total_credits
+        total_credits=total_credits,
+        expired_credits=expired_credits_amount
     )
 
 @router.get("/analytics")
@@ -241,10 +256,10 @@ def upload_self_promo(
     
     total_recent_credits = sum(credit.amount for credit in recent_credits)
     
-    if total_recent_credits >= 15.0:
+    if total_recent_credits >= settings.monthly_self_promo_cap:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Monthly self-promo credit limit reached ($15/month)"
+            detail=f"Monthly self-promo credit limit reached (${settings.monthly_self_promo_cap}/month)"
         )
     
     # Create self-promo record
@@ -291,17 +306,19 @@ def update_self_promo_metrics(
     
     # Calculate credit earned (minimum thresholds: 300 views, 30 likes)
     if self_promo.views >= 300 and self_promo.likes >= 30:
-        credit_amount = 10.0  # $10 for qualifying self-promo
+        credit_amount = settings.self_promo_credit  # $10 for qualifying self-promo
         
         # Check if credit already awarded
         if self_promo.credit_earned == 0:
             self_promo.credit_earned = credit_amount
             
-            # Add credit to user account
+            # Add credit to user account with 6-month expiry
+            credit_expiry = datetime.utcnow() + timedelta(days=30 * settings.credit_expiry_months)
             credit = Credit(
                 user_id=current_user.id,
                 amount=credit_amount,
-                source="self-promo"
+                source="self-promo",
+                expiry=credit_expiry
             )
             db.add(credit)
     

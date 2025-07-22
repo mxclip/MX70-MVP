@@ -1,5 +1,5 @@
-from pydantic import BaseModel, EmailStr
-from typing import Optional, List, Dict, Any
+from pydantic import BaseModel, EmailStr, Field
+from typing import Optional, List, Dict, Any, Literal
 from datetime import datetime
 
 # User schemas
@@ -26,11 +26,15 @@ class Token(BaseModel):
 class TokenData(BaseModel):
     email: Optional[str] = None
 
+# Predefined options for dropdowns
+GOAL_OPTIONS = ["1k views", "100 likes", "10 check-ins", "10% sales lift"]
+STORY_TYPE_OPTIONS = ["morning rush", "lunch specials", "closing", "unboxing", "try-on", "demo"]
+
 # Gig schemas
 class GigBase(BaseModel):
-    budget: float
-    goals: str
-    story_type: str
+    budget: float = Field(..., ge=50.0, description="Minimum budget is $50")
+    goals: Literal["1k views", "100 likes", "10 check-ins", "10% sales lift"]
+    story_type: Literal["morning rush", "lunch specials", "closing", "unboxing", "try-on", "demo"]
     raw_footage_url: Optional[str] = None
 
 class GigCreate(GigBase):
@@ -44,6 +48,11 @@ class GigResponse(GigBase):
     
     class Config:
         from_attributes = True
+
+# File upload schemas
+class FileUploadResponse(BaseModel):
+    file_url: str
+    thumbnail_url: Optional[str] = None
 
 # Submission schemas
 class SubmissionBase(BaseModel):
@@ -102,6 +111,7 @@ class CreditResponse(BaseModel):
     user_id: int
     amount: float
     source: str
+    expiry: datetime
     created_at: datetime
     
     class Config:
@@ -130,6 +140,7 @@ class DashboardResponse(BaseModel):
     submissions: List[SubmissionResponse]
     credits: List[CreditResponse]
     total_credits: float
+    expired_credits: float
 
 # Payment schemas
 class PaymentCreate(BaseModel):
@@ -139,4 +150,26 @@ class PaymentCreate(BaseModel):
 class PaymentResponse(BaseModel):
     id: str
     amount: float
-    status: str 
+    status: str
+
+# Enhanced analytics schemas
+class PerformanceMetrics(BaseModel):
+    total_views: int
+    total_likes: int
+    total_outcomes: int
+    average_engagement_rate: float
+    roi_percentage: float
+
+class BusinessAnalytics(BaseModel):
+    performance_metrics: PerformanceMetrics
+    story_type_performance: Dict[str, Any]
+    monthly_spending: Dict[str, float]
+    credits_earned: float
+    credits_spent: float
+
+class ClipperAnalytics(BaseModel):
+    performance_metrics: PerformanceMetrics
+    total_earnings: float
+    average_bonus_per_gig: float
+    certification_level: str
+    completion_rate: float 

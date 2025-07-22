@@ -26,10 +26,10 @@ class Gig(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     business_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    budget = Column(Float, nullable=False)
-    goals = Column(String, nullable=False)  # e.g., "1k views, 10% sales lift"
-    story_type = Column(String, nullable=False)  # e.g., "morning rush"
-    raw_footage_url = Column(String)
+    budget = Column(Float, nullable=False)  # minimum $50
+    goals = Column(String, nullable=False)  # "1k views", "100 likes", "10 check-ins", "10% sales lift"
+    story_type = Column(String, nullable=False)  # "morning rush", "lunch specials", "closing", "unboxing", "try-on", "demo"
+    raw_footage_url = Column(String)  # S3 URL for uploaded raw footage
     status = Column(String, default="pending")  # pending/claimed/completed
     created_at = Column(DateTime, server_default=func.now())
     
@@ -84,6 +84,7 @@ class Credit(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     amount = Column(Float, nullable=False)
     source = Column(String, nullable=False)  # self-promo/gig_post
+    expiry = Column(DateTime, nullable=False)  # +6 months from creation
     created_at = Column(DateTime, server_default=func.now())
     
     # Relationships

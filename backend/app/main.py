@@ -15,6 +15,10 @@ from .auth import (
     ACCESS_TOKEN_EXPIRE_MINUTES
 )
 from .routers import gigs, lessons, payments, dashboard
+from .middleware import setup_rate_limiting
+from .config import get_settings
+
+settings = get_settings()
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -29,6 +33,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Setup rate limiting
+setup_rate_limiting(app)
 
 # Include routers
 app.include_router(gigs.router)
