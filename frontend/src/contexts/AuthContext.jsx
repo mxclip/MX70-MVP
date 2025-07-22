@@ -1,36 +1,10 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
-import axios from 'axios'
+import mockApi from '../services/mockApi'
 
 const AuthContext = createContext()
 
-// Set up axios defaults
-axios.defaults.baseURL = '/api'
-
-// Add request interceptor to include auth token
-axios.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token')
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`
-    }
-    return config
-  },
-  (error) => {
-    return Promise.reject(error)
-  }
-)
-
-// Add response interceptor to handle auth errors
-axios.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('token')
-      window.location.href = '/login'
-    }
-    return Promise.reject(error)
-  }
-)
+// Development mode flag - set to false when backend is working
+const USE_MOCK_API = true
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
@@ -47,8 +21,14 @@ export function AuthProvider({ children }) {
 
   const fetchUser = async () => {
     try {
-      const response = await axios.get('/users/me')
-      setUser(response.data)
+      if (USE_MOCK_API) {
+        const user = await mockApi.getCurrentUser()
+        setUser(user)
+      } else {
+        // Real API call when backend is working
+        const response = await axios.get('/users/me')
+        setUser(response.data)
+      }
     } catch (error) {
       console.error('Error fetching user:', error)
       localStorage.removeItem('token')
@@ -59,45 +39,60 @@ export function AuthProvider({ children }) {
 
   const login = async (email, password) => {
     try {
-      const formData = new FormData()
-      formData.append('username', email)
-      formData.append('password', password)
-      
-      const response = await axios.post('/token', formData, {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-      })
-      
-      const { access_token } = response.data
-      localStorage.setItem('token', access_token)
-      
-      await fetchUser()
-      return { success: true }
+      if (USE_MOCK_API) {
+        const response = await mockApi.login(email, password)
+        localStorage.setItem('token', response.access_token)
+        setUser(response.user)
+        return { success: true }
+      } else {
+        // Real API call when backend is working
+        const formData = new FormData()
+        formData.append('username', email)
+        formData.append('password', password)
+        
+        const response = await axios.post('/token', formData, {
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+        })
+        
+        const { access_token } = response.data
+        localStorage.setItem('token', access_token)
+        
+        await fetchUser()
+        return { success: true }
+      }
     } catch (error) {
       console.error('Login error:', error)
       return { 
         success: false, 
-        error: error.response?.data?.detail || 'Login failed' 
+        error: error.message || 'Login failed' 
       }
     }
   }
 
   const signup = async (email, password, role) => {
     try {
-      await axios.post('/signup', {
-        email,
-        password,
-        role
-      })
-      
-      // Auto-login after signup
-      return await login(email, password)
+      if (USE_MOCK_API) {
+        await mockApi.signup({ email, password, role })
+        // Auto-login after signup
+        return await login(email, password)
+      } else {
+        // Real API call when backend is working
+        await axios.post('/signup', {
+          email,
+          password,
+          role
+        })
+        
+        // Auto-login after signup
+        return await login(email, password)
+      }
     } catch (error) {
       console.error('Signup error:', error)
       return { 
         success: false, 
-        error: error.response?.data?.detail || 'Signup failed' 
+        error: error.message || 'Signup failed' 
       }
     }
   }
@@ -105,6 +100,9 @@ export function AuthProvider({ children }) {
   const logout = () => {
     localStorage.removeItem('token')
     setUser(null)
+    if (USE_MOCK_API) {
+      mockApi.logout()
+    }
   }
 
   const value = {

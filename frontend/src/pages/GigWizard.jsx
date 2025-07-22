@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import axios from 'axios'
+import api from '../services/api'
 import { CheckIcon, UploadIcon } from 'lucide-react'
 
 const GOAL_OPTIONS = [
@@ -51,21 +51,14 @@ function GigWizard() {
     setError('')
 
     try {
-      const uploadFormData = new FormData()
-      uploadFormData.append('file', file)
-
-      const response = await axios.post('/gigs/upload-raw-footage', uploadFormData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
-      })
+      const response = await api.uploadFile(file, 'raw-footage')
 
       setFormData({
         ...formData,
-        raw_footage_url: response.data.raw_footage_url
+        raw_footage_url: response.url
       })
     } catch (error) {
-      setError(error.response?.data?.detail || 'Failed to upload file')
+      setError(error.message || 'Failed to upload file')
     } finally {
       setUploading(false)
     }
@@ -77,14 +70,14 @@ function GigWizard() {
     setError('')
 
     try {
-      await axios.post('/gigs/post-gig', {
+      await api.createGig({
         ...formData,
         budget: parseFloat(formData.budget)
       })
       
       navigate('/dashboard')
     } catch (error) {
-      setError(error.response?.data?.detail || 'Failed to post gig')
+      setError(error.message || 'Failed to post gig')
     } finally {
       setLoading(false)
     }

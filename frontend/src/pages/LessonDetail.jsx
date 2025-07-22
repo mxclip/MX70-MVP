@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import axios from 'axios'
+import api from '../services/api'
 import { CheckCircleIcon, XCircleIcon } from 'lucide-react'
 
 function LessonDetail() {
@@ -18,9 +18,9 @@ function LessonDetail() {
 
   const fetchLesson = async () => {
     try {
-      const response = await axios.get(`/lessons/${lessonId}`)
-      setLesson(response.data)
-      setAnswers(new Array(response.data.quiz.questions.length).fill(null))
+      const lesson = await api.getLesson(lessonId)
+      setLesson(lesson)
+      setAnswers(new Array(lesson.quiz.questions.length).fill(null))
     } catch (error) {
       console.error('Error fetching lesson:', error)
     } finally {
@@ -30,10 +30,8 @@ function LessonDetail() {
 
   const submitQuiz = async () => {
     try {
-      const response = await axios.post(`/lessons/${lessonId}/complete-quiz`, {
-        answers: answers
-      })
-      setResult(response.data)
+      const result = await api.completeQuiz(parseInt(lessonId), answers)
+      setResult(result)
     } catch (error) {
       console.error('Error submitting quiz:', error)
     }

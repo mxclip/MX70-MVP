@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import axios from 'axios'
+import api from '../services/api'
 import { DollarSignIcon, EyeIcon, ClockIcon } from 'lucide-react'
 
 function Marketplace() {
@@ -13,8 +13,8 @@ function Marketplace() {
 
   const fetchGigs = async () => {
     try {
-      const response = await axios.get('/gigs/available')
-      setGigs(response.data)
+      const gigs = await api.getAvailableGigs()
+      setGigs(gigs)
     } catch (error) {
       setError('Failed to load gigs')
     } finally {
@@ -24,10 +24,10 @@ function Marketplace() {
 
   const claimGig = async (gigId) => {
     try {
-      await axios.post(`/gigs/${gigId}/claim`)
+      await api.claimGig(gigId)
       setGigs(gigs.filter(gig => gig.id !== gigId))
     } catch (error) {
-      alert(error.response?.data?.detail || 'Failed to claim gig')
+      alert(error.message || 'Failed to claim gig')
     }
   }
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import axios from 'axios'
+import api from '../services/api'
 import { 
   PlusIcon, 
   EyeIcon, 
@@ -12,6 +12,8 @@ import {
   CheckCircleIcon,
   AlertCircleIcon
 } from 'lucide-react'
+import AnalyticsChart from '../components/AnalyticsChart'
+import SelfPromoForm from '../components/SelfPromoForm'
 
 function Dashboard() {
   const { user } = useAuth()
@@ -26,12 +28,12 @@ function Dashboard() {
   const fetchDashboardData = async () => {
     try {
       const [dashboardResponse, analyticsResponse] = await Promise.all([
-        axios.get('/dashboard/'),
-        axios.get('/dashboard/analytics')
+        api.getDashboard(),
+        api.getAnalytics()
       ])
       
-      setDashboardData(dashboardResponse.data)
-      setAnalytics(analyticsResponse.data)
+      setDashboardData(dashboardResponse)
+      setAnalytics(analyticsResponse)
     } catch (error) {
       console.error('Error fetching dashboard data:', error)
     } finally {
@@ -72,7 +74,14 @@ function Dashboard() {
 }
 
 function BusinessDashboard({ dashboardData, analytics }) {
-  const summary = analytics?.summary || {}
+  const summary = dashboardData?.stats || {}
+  
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
+  
+  const handleSelfPromoSuccess = () => {
+    setRefreshTrigger(prev => prev + 1)
+    // In a real app, this would trigger a dashboard data refresh
+  }
   
   return (
     <div className="space-y-8">
@@ -156,35 +165,65 @@ function BusinessDashboard({ dashboardData, analytics }) {
         </div>
       </div>
 
-      {/* Recent Gigs */}
-      <div className="bg-white rounded-lg shadow">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">Recent Gigs</h2>
+      {/* Analytics Charts */}
+      {analytics && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div className="bg-white rounded-lg shadow p-6">
+            <AnalyticsChart
+              data={analytics.views}
+              title="Views Over Time"
+              color="#3B82F6"
+              type="line"
+            />
+          </div>
+          <div className="bg-white rounded-lg shadow p-6">
+            <AnalyticsChart
+              data={analytics.engagement}
+              title="Engagement Rate"
+              color="#10B981"
+              type="line"
+            />
+          </div>
         </div>
-        <div className="divide-y divide-gray-200">
-          {dashboardData?.gigs?.slice(0, 5).map((gig) => (
-            <div key={gig.id} className="px-6 py-4 flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-medium text-gray-900">{gig.story_type}</h3>
-                <p className="text-sm text-gray-500">{gig.goals}</p>
-                <p className="text-xs text-gray-400">Budget: ${gig.budget}</p>
+      )}
+
+      {/* Self-Promo and Recent Gigs */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Self-Promo Form */}
+        <div>
+          <SelfPromoForm onSuccess={handleSelfPromoSuccess} />
+        </div>
+
+        {/* Recent Gigs */}
+        <div className="bg-white rounded-lg shadow">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h2 className="text-lg font-semibold text-gray-900">Recent Gigs</h2>
+          </div>
+          <div className="divide-y divide-gray-200">
+            {dashboardData?.gigs?.slice(0, 5).map((gig) => (
+              <div key={gig.id} className="px-6 py-4 flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-medium text-gray-900">{gig.story_type}</h3>
+                  <p className="text-sm text-gray-500">{gig.goals}</p>
+                  <p className="text-xs text-gray-400">Budget: ${gig.budget}</p>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                    gig.status === 'completed' ? 'bg-green-100 text-green-800' :
+                    gig.status === 'claimed' ? 'bg-yellow-100 text-yellow-800' :
+                    'bg-gray-100 text-gray-800'
+                  }`}>
+                    {gig.status}
+                  </span>
+                </div>
               </div>
-              <div className="flex items-center space-x-2">
-                <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                  gig.status === 'completed' ? 'bg-green-100 text-green-800' :
-                  gig.status === 'claimed' ? 'bg-yellow-100 text-yellow-800' :
-                  'bg-gray-100 text-gray-800'
-                }`}>
-                  {gig.status}
-                </span>
+            ))}
+            {!dashboardData?.gigs?.length && (
+              <div className="px-6 py-8 text-center text-gray-500">
+                No gigs posted yet. <Link to="/post-gig" className="text-primary-600 hover:text-primary-500">Post your first gig</Link>
               </div>
-            </div>
-          ))}
-          {!dashboardData?.gigs?.length && (
-            <div className="px-6 py-8 text-center text-gray-500">
-              No gigs posted yet. <Link to="/post-gig" className="text-primary-600 hover:text-primary-500">Post your first gig</Link>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -192,14 +231,14 @@ function BusinessDashboard({ dashboardData, analytics }) {
 }
 
 function ClipperDashboard({ dashboardData, analytics }) {
-  const summary = analytics?.summary || {}
+  const summary = dashboardData?.stats || {}
   
   return (
     <div className="space-y-8">
       {/* Certification Status */}
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Certification Status</h2>
-        {analytics?.certifications?.length > 0 ? (
+        {dashboardData?.user?.certifications?.length > 0 ? (
           <div className="flex items-center text-green-600">
             <CheckCircleIcon className="w-5 h-5 mr-2" />
             <span>You're certified and eligible to claim gigs!</span>
@@ -294,6 +333,28 @@ function ClipperDashboard({ dashboardData, analytics }) {
           </div>
         </Link>
       </div>
+
+      {/* Analytics Charts for Clippers */}
+      {analytics && summary.total_submissions > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div className="bg-white rounded-lg shadow p-6">
+            <AnalyticsChart
+              data={analytics.views}
+              title="Your Views Performance"
+              color="#8B5CF6"
+              type="line"
+            />
+          </div>
+          <div className="bg-white rounded-lg shadow p-6">
+            <AnalyticsChart
+              data={analytics.earnings}
+              title="Earnings Over Time"
+              color="#10B981"
+              type="bar"
+            />
+          </div>
+        </div>
+      )}
 
       {/* Recent Submissions */}
       <div className="bg-white rounded-lg shadow">

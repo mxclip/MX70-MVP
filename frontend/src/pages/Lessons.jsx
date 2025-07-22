@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import axios from 'axios'
+import api from '../services/api'
 import { BookOpenIcon, PlayIcon, CheckCircleIcon } from 'lucide-react'
 
 function Lessons() {
@@ -14,13 +14,12 @@ function Lessons() {
 
   const fetchData = async () => {
     try {
-      const [lessonsResponse, certificationsResponse] = await Promise.all([
-        axios.get('/lessons/'),
-        axios.get('/lessons/certifications/my')
-      ])
+      const lessons = await api.getLessons()
+      setLessons(lessons)
       
-      setLessons(lessonsResponse.data)
-      setCertifications(certificationsResponse.data)
+      // For MVP, assume no certifications initially
+      // In real app, this would come from the API
+      setCertifications([])
     } catch (error) {
       console.error('Error fetching lessons:', error)
     } finally {
